@@ -20,18 +20,14 @@ def main() -> int:
         logger.error("%s", exc)
         return 2
 
-    relay = ForwardEmailRelay(config.forwardemail_username, config.forwardemail_password)
-    controller = build_controller(
-        relay,
-        username=config.smtp_username,
-        password=config.smtp_password,
-        hostname=config.host,
-        port=config.port,
-    )
+    relay = ForwardEmailRelay()
+    controller = build_controller(relay, config.accounts, hostname=config.host, port=config.port)
     controller.start()
-    logger.info(
-        "listening on %s:%s, relaying as %s", config.host, config.port, config.forwardemail_username
-    )
+    logger.info("listening on %s:%s", config.host, config.port)
+    for account in config.accounts:
+        logger.info(
+            "login %r relays as %s", account.smtp_username, account.forwardemail_username
+        )
 
     stop = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
