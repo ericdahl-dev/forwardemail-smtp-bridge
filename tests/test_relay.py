@@ -1,6 +1,6 @@
 """The bridge turns an SMTP message into a ForwardEmail API call.
 
-ger3 blocks every outbound SMTP port (25, 465, 587, 2465, 2587), but the HTTPS API is reachable,
+Some hosts block every outbound SMTP port (25, 465, 587, 2465, 2587), but the HTTPS API is reachable,
 so apps that can only speak SMTP send here instead.
 """
 from email.message import EmailMessage
