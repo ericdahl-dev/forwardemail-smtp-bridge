@@ -1,7 +1,7 @@
 """Send an SMTP message through ForwardEmail's HTTPS API.
 
-ger3 blocks outbound SMTP on every port ForwardEmail offers (25, 465, 587, 2465, 2587), while
-https://api.forwardemail.net is reachable. Apps that can only speak SMTP (Django's email backend,
+Some hosts block outbound SMTP on every port ForwardEmail offers (25, 465, 587, 2465, 2587),
+while https://api.forwardemail.net is reachable. Apps that can only speak SMTP (Django's email backend,
 for one) send here, and this forwards the message over HTTPS.
 
 The message is passed through as `raw` RFC822, so headers, multipart bodies and attachments
