@@ -26,38 +26,40 @@ class RelayError(Exception):
 
 
 class ForwardEmailRelay:
-    """Posts messages to ForwardEmail using alias credentials (alias email + alias password)."""
+    """Posts messages to ForwardEmail using alias credentials (alias email + alias password).
+
+    One relay serves every SMTP login: the credentials come with each message.
+    """
 
     def __init__(
         self,
-        username: str,
-        password: str,
         client: Optional[httpx.Client] = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
-        self._username = username
-        self._password = password
         self._client = client or httpx.Client(base_url=API_BASE_URL, timeout=timeout)
 
-    def send(self, raw_message: bytes, envelope_recipients: Sequence[str]) -> None:
+    def send(
+        self, raw_message: bytes, envelope_recipients: Sequence[str], username: str, password: str
+    ) -> None:
         payload = {
             "raw": raw_message.decode("utf-8", errors="replace"),
             "to": list(envelope_recipients),
         }
         try:
             response = self._client.post(
-                SEND_PATH, json=payload, auth=(self._username, self._password)
+                SEND_PATH, json=payload, auth=(username, password)
             )
         except httpx.HTTPError as exc:
             # Never interpolate credentials into the message.
             raise RelayError(f"could not reach ForwardEmail: {type(exc).__name__}") from exc
 
         if response.status_code >= 300:
-            detail = response.text[:200].replace(self._password, "***")
+            detail = response.text[:200].replace(password, "***")
             raise RelayError(f"ForwardEmail returned HTTP {response.status_code}: {detail}")
 
         logger.info(
-            "relayed message to %d recipient(s) (HTTP %s)",
+            "relayed message as %s to %d recipient(s) (HTTP %s)",
+            username,
             len(envelope_recipients),
             response.status_code,
         )

@@ -13,7 +13,7 @@ from bridge.relay import ForwardEmailRelay, RelayError
 
 def build_message(subject="Password reset", to="eric@example.com") -> bytes:
     msg = EmailMessage()
-    msg["From"] = "alerts@ericdahl.dev"
+    msg["From"] = "alerts@example.com"
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content("Click the link to reset your password.")
@@ -23,11 +23,13 @@ def build_message(subject="Password reset", to="eric@example.com") -> bytes:
 def relay_with(handler, **kwargs):
     transport = httpx.MockTransport(handler)
     return ForwardEmailRelay(
-        username="alerts@ericdahl.dev",
-        password="secret-alias-password",
         client=httpx.Client(transport=transport, base_url="https://api.forwardemail.net"),
         **kwargs,
     )
+
+
+def send(relay, raw, recipients, username="alerts@example.com", password="secret-alias-password"):
+    relay.send(raw, envelope_recipients=recipients, username=username, password=password)
 
 
 def test_posts_the_raw_message_so_mime_is_preserved():
@@ -40,7 +42,7 @@ def test_posts_the_raw_message_so_mime_is_preserved():
         return httpx.Response(200, json={"id": "abc"})
 
     raw = build_message()
-    relay_with(handler).send(raw, envelope_recipients=["eric@example.com"])
+    send(relay_with(handler), raw, ["eric@example.com"])
 
     assert seen["url"].endswith("/v1/emails")
     assert seen["json"]["raw"] == raw.decode()
@@ -54,13 +56,13 @@ def test_authenticates_with_alias_credentials():
         seen["auth"] = request.headers.get("authorization", "")
         return httpx.Response(200, json={"id": "abc"})
 
-    relay_with(handler).send(build_message(), envelope_recipients=["eric@example.com"])
+    send(relay_with(handler), build_message(), ["eric@example.com"])
 
     import base64
 
     assert seen["auth"].startswith("Basic ")
     decoded = base64.b64decode(seen["auth"].split(" ", 1)[1]).decode()
-    assert decoded == "alerts@ericdahl.dev:secret-alias-password"
+    assert decoded == "alerts@example.com:secret-alias-password"
 
 
 def test_passes_every_envelope_recipient():
@@ -70,7 +72,7 @@ def test_passes_every_envelope_recipient():
         seen["json"] = __import__("json").loads(request.content)
         return httpx.Response(200, json={"id": "abc"})
 
-    relay_with(handler).send(build_message(), envelope_recipients=["a@x.com", "b@y.com"])
+    send(relay_with(handler), build_message(), ["a@x.com", "b@y.com"])
 
     assert seen["json"]["to"] == ["a@x.com", "b@y.com"]
 
@@ -81,7 +83,7 @@ def test_api_failure_raises_so_smtp_can_report_it(status):
         return httpx.Response(status, json={"message": "nope"})
 
     with pytest.raises(RelayError) as err:
-        relay_with(handler).send(build_message(), envelope_recipients=["eric@example.com"])
+        send(relay_with(handler), build_message(), ["eric@example.com"])
 
     assert str(status) in str(err.value)
 
@@ -91,6 +93,33 @@ def test_error_message_never_leaks_the_password():
         return httpx.Response(500, json={"message": "boom"})
 
     with pytest.raises(RelayError) as err:
-        relay_with(handler).send(build_message(), envelope_recipients=["eric@example.com"])
+        send(relay_with(handler), build_message(), ["eric@example.com"])
+
+    assert "secret-alias-password" not in str(err.value)
+
+
+def test_each_send_uses_the_credentials_it_is_given():
+    """One relay serves every login; credentials come with the message, not the relay."""
+    import base64
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(base64.b64decode(request.headers["authorization"].split(" ", 1)[1]).decode())
+        return httpx.Response(200, json={"id": "abc"})
+
+    relay = relay_with(handler)
+    send(relay, build_message(), ["x@example.com"], "alerts@example.com", "pw-a")
+    send(relay, build_message(), ["x@example.com"], "eric@example.com", "pw-b")
+
+    assert seen == ["alerts@example.com:pw-a", "eric@example.com:pw-b"]
+
+
+def test_error_message_never_leaks_the_password_even_if_the_api_echoes_it():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="bad password secret-alias-password")
+
+    with pytest.raises(RelayError) as err:
+        send(relay_with(handler), build_message(), ["eric@example.com"])
 
     assert "secret-alias-password" not in str(err.value)
