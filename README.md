@@ -2,7 +2,7 @@
 
 SMTP in, [ForwardEmail](https://forwardemail.net) HTTPS API out.
 
-Some hosts block outbound SMTP on every port. Hetzner's ger3 blocks 25, 465, 587 and even ForwardEmail's alternates 2465 and 2587, while `https://api.forwardemail.net` is reachable. Plenty of software can only send mail over SMTP (Django's email backend, for one). This bridge sits in between: apps send to it over SMTP on the internal network, and it forwards each message through ForwardEmail's API.
+Some hosts block outbound SMTP on every port, including providers' alternate ports, while HTTPS APIs such as `https://api.forwardemail.net` stay reachable. Plenty of software can only send mail over SMTP (Django's email backend, for one). This bridge sits in between: apps send to it over SMTP on the internal network, and it forwards each message through ForwardEmail's API.
 
 The message is passed through as `raw` RFC822, so headers, multipart bodies and attachments arrive exactly as the sending app wrote them.
 
