@@ -56,6 +56,10 @@ The single-login variables still work, alone or alongside `BRIDGE_ACCOUNTS` (the
 
 The four single-login variables go together: set all of them or none. The bridge refuses to start, with a message naming the problem, if they are partly set, if a `BRIDGE_ACCOUNTS` entry is missing a key or has an unknown one, or if two logins share an SMTP username. These messages never include the configured values.
 
+## Health check
+
+`python -m bridge.healthcheck` connects to the bridge's own SMTP port (`SMTP_PORT`, default 2525) on loopback and sends `NOOP`. It exits 0 when the server answers and 1 otherwise. It never logs in or sends mail. The image declares it as its Docker `HEALTHCHECK`. On a platform with its own health checks, such as Coolify, use it as a command check: Coolify's HTTP checks can't test an SMTP server.
+
 ## Behavior worth knowing
 
 - **Authentication is mandatory.** An SMTP server that forwards to a real provider without auth is an open relay. Unauthenticated mail is refused, and so is a bad password (535). Passwords are compared in constant time.
